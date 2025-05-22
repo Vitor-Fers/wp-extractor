@@ -8,6 +8,8 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('pages');
   const [history, setHistory] = useState([]);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState({ pages: 1, users: 1, media: 1 });
+  const [theme, setTheme] = useState(localStorage.getItem('wpExplorerTheme') || 'light');
 
   useEffect(() => {
     const savedHistory = localStorage.getItem('wpExplorerHistory');
@@ -23,6 +25,15 @@ const App = () => {
       localStorage.setItem('wpExplorerHistory', JSON.stringify(newHistory));
     }
   }, [url, data]);
+
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('wpExplorerTheme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   const fetchAllData = async (url) => {
     setIsLoading(true);
@@ -56,6 +67,7 @@ const App = () => {
       ]);
 
       setData({ pages, users, media });
+      setPage({ pages: 1, users: 1, media: 1 });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -81,9 +93,51 @@ const App = () => {
     m.title.rendered.toLowerCase().includes(search.toLowerCase())
   ) || [];
 
+  const itemsPerPage = 100;
+
+  const getPaginatedItems = (items, currentPage) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return items.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const handlePageChange = (tab, direction) => {
+    setPage(prev => ({
+      ...prev,
+      [tab]: direction === 'next' ? prev[tab] + 1 : prev[tab] - 1
+    }));
+  };
+
+  const renderPagination = (tab, items) => {
+    const totalPages = Math.ceil(items.length / itemsPerPage);
+    const currentPage = page[tab];
+
+    return (
+      <div className="pagination">
+        <button
+          onClick={() => handlePageChange(tab, 'prev')}
+          disabled={currentPage === 1}
+        >
+          Anterior
+        </button>
+        <span>Página {currentPage} de {totalPages}</span>
+        <button
+          onClick={() => handlePageChange(tab, 'next')}
+          disabled={currentPage === totalPages}
+        >
+          Próximo
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="container">
-      <h1>Simple WordPress Explorer</h1>
+      <div className="header">
+        <h1>Simple WordPress Explorer</h1>
+        <button className="theme-toggle" onClick={toggleTheme}>
+          {theme === 'light' ? 'Dark Theme' : 'Light Theme'}
+        </button>
+      </div>
       <form onSubmit={handleSubmit}>
         <input
           type="text"
@@ -118,19 +172,19 @@ const App = () => {
               className={`tab ${activeTab === 'pages' ? 'active' : ''}`}
               onClick={() => setActiveTab('pages')}
             >
-              Páginas ({data.pages.length})
+              Páginas ({filteredPages.length})
             </div>
             <div
               className={`tab ${activeTab === 'users' ? 'active' : ''}`}
               onClick={() => setActiveTab('users')}
             >
-              Usuários ({data.users.length})
+              Usuários ({filteredUsers.length})
             </div>
             <div
               className={`tab ${activeTab === 'media' ? 'active' : ''}`}
               onClick={() => setActiveTab('media')}
             >
-              Mídias ({data.media.length})
+              Mídias ({filteredMedia.length})
             </div>
           </div>
 
@@ -142,79 +196,88 @@ const App = () => {
           />
 
           {activeTab === 'pages' && (
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Título</th>
-                  <th>Link</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPages.length === 0 ? (
+            <div>
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan="3">{search ? 'Nenhuma página encontrada' : 'Nenhuma página disponível'}</td>
+                    <th>ID</th>
+                    <th>Título</th>
+                    <th>Link</th>
                   </tr>
-                ) : (
-                  filteredPages.map(page => (
-                    <tr key={page.id}>
-                      <td>{page.id}</td>
-                      <td dangerouslySetInnerHTML={{ __html: page.title.rendered }}></td>
-                      <td>
-                        <a href={page.link} target="_blank" rel="noopener noreferrer">Visitar</a>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredPages.length === 0 ? (
+                    <tr>
+                      <td colSpan="3">{search ? 'Nenhuma página encontrada' : 'Nenhuma página disponível'}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    getPaginatedItems(filteredPages, page.pages).map(page => (
+                      <tr key={page.id}>
+                        <td>{page.id}</td>
+                        <td dangerouslySetInnerHTML={{ __html: page.title.rendered }}></td>
+                        <td>
+                          <a href={page.link} target="_blank" rel="noopener noreferrer">Visitar</a>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              {filteredPages.length > 0 && renderPagination('pages', filteredPages)}
+            </div>
           )}
 
           {activeTab === 'users' && (
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Nome</th>
-                  <th>Link</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
+            <div>
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan="3">{search ? 'Nenhum usuário encontrado' : 'Nenhum usuário disponível'}</td>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Link</th>
                   </tr>
-                ) : (
-                  filteredUsers.map(user => (
-                    <tr key={user.id}>
-                      <td>{user.id}</td>
-                      <td>{user.name}</td>
-                      <td>
-                        <a href={user.link} target="_blank" rel="noopener noreferrer">Visitar</a>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="3">{search ? 'Nenhum usuário encontrado' : 'Nenhum usuário disponível'}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    getPaginatedItems(filteredUsers, page.users).map(user => (
+                      <tr key={user.id}>
+                        <td>{user.id}</td>
+                        <td>{user.name}</td>
+                        <td>
+                          <a href={user.link} target="_blank" rel="noopener noreferrer">Visitar</a>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              {filteredUsers.length > 0 && renderPagination('users', filteredUsers)}
+            </div>
           )}
 
           {activeTab === 'media' && (
-            <div className="media-grid">
-              {filteredMedia.length === 0 ? (
-                <div>{search ? 'Nenhuma imagem encontrada' : 'Nenhuma imagem disponível'}</div>
-              ) : (
-                filteredMedia.map(media => (
-                  <div key={media.id} className="media-item">
-                    <img
-                      src={media.source_url}
-                      alt={media.title.rendered}
-                    />
-                    <p dangerouslySetInnerHTML={{ __html: media.title.rendered }}></p>
-                    <a href={media.source_url} download>Download</a>
-                  </div>
-                ))
-              )}
+            <div>
+              <div className="media-grid">
+                {filteredMedia.length === 0 ? (
+                  <div>{search ? 'Nenhuma imagem encontrada' : 'Nenhuma imagem disponível'}</div>
+                ) : (
+                  getPaginatedItems(filteredMedia, page.media).map(media => (
+                    <div key={media.id} className="media-item">
+                      <img
+                        src={media.source_url}
+                        alt={media.title.rendered}
+                      />
+                      <p dangerouslySetInnerHTML={{ __html: media.title.rendered }}></p>
+                      <a href={media.source_url} download>Download</a>
+                    </div>
+                  ))
+                )}
+              </div>
+              {filteredMedia.length > 0 && renderPagination('media', filteredMedia)}
             </div>
           )}
         </div>
