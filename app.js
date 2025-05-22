@@ -43,6 +43,7 @@ const App = () => {
         let allItems = [];
         let page = 1;
         let totalPages = 1;
+        console.log(allItems)
 
         while (page <= totalPages) {
           const response = await fetch(`${url}/wp-json/wp/v2/${endpoint}?per_page=100&page=${page}`);
