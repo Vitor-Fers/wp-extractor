@@ -24,23 +24,37 @@ const App = () => {
     }
   }, [url, data]);
 
-  const fetchData = async (url) => {
+  const fetchAllData = async (url) => {
     setIsLoading(true);
     setError('');
     try {
-      const [pagesRes, usersRes, mediaRes] = await Promise.all([
-        fetch(`${url}/wp-json/wp/v2/pages?per_page=10`),
-        fetch(`${url}/wp-json/wp/v2/users?per_page=10`),
-        fetch(`${url}/wp-json/wp/v2/media?per_page=10`),
-      ]);
+      const fetchAllPages = async (endpoint) => {
+        let allItems = [];
+        let page = 1;
+        let totalPages = 1;
+
+        while (page <= totalPages) {
+          const response = await fetch(`${url}/wp-json/wp/v2/${endpoint}?per_page=100&page=${page}`);
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar ${endpoint}`);
+          }
+          const items = await response.json();
+          if (items.code) {
+            throw new Error(`Erro na API: ${items.message}`);
+          }
+          allItems = [...allItems, ...items];
+          totalPages = parseInt(response.headers.get('X-WP-TotalPages') || 1);
+          page++;
+        }
+        return allItems;
+      };
+
       const [pages, users, media] = await Promise.all([
-        pagesRes.json(),
-        usersRes.json(),
-        mediaRes.json(),
+        fetchAllPages('pages'),
+        fetchAllPages('users'),
+        fetchAllPages('media'),
       ]);
-      if (pages.code || users.code || media.code) {
-        throw new Error('Erro ao acessar a API REST do WordPress. Verifique a URL.');
-      }
+
       setData({ pages, users, media });
     } catch (err) {
       setError(err.message);
@@ -52,7 +66,7 @@ const App = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (url) {
-      fetchData(url);
+      fetchAllData(url);
     }
   };
 
@@ -75,7 +89,7 @@ const App = () => {
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Insira a URL do site WordPress (ex.: https://example.com)"
+          placeholder="Insira a URL do site WordPress (ex.: https://demo.wp-api.org/)"
         />
         <button type="submit">Analisar</button>
       </form>
@@ -85,7 +99,7 @@ const App = () => {
           Histórico: {history.map(item => (
             <span
               key={item}
-              onClick={() => { setUrl(item); fetchData(item); }}
+              onClick={() => { setUrl(item); fetchAllData(item); }}
             >
               {item.replace(/^https?:\/\//, '')}
             </span>
@@ -93,7 +107,7 @@ const App = () => {
         </div>
       )}
 
-      {isLoading && <div className="loading">Carregando...</div>}
+      {isLoading && <div className="loading">Carregando todos os dados, por favor aguarde...</div>}
 
       {error && <div className="error">{error}</div>}
 
